@@ -8,7 +8,6 @@ import json
 CONF_FILE = 'pypass.conf'
 GPG = gnupg.GPG()
 
-
 def sha256(fname):
     hash_sha256 = hashlib.sha256()
     with open(fname, "rb") as f:
@@ -56,10 +55,39 @@ def tbd(config):
         sys.exit(1)
 
 
+def add_password(db, _):
+    pass
+
+
+def view_password(db, _):
+    pass
+
+
+def quit(*args):
+    sys.exit(0)
+
+
+COMMANDS = {
+    'add': add_password,
+    'view': view_password,
+    'store': store_db,
+    'quit': quit
+}
+
+
+def read_command():
+    while True:
+        command = input('command: ')
+        if command in COMMANDS:
+            return COMMANDS[command]
+        else:
+            print("Valid commands are %s" % (', '.join([str(k) for k in COMMANDS.keys()])))
+
+
 if __name__ == '__main__':
     with open(CONF_FILE, 'r') as f:
         config = json.load(f)
         db = fetch_db(config)
-        db['newer'] = {'username': 'test', 'password': 'test'}
-        print(json.dumps(db))
-        store_db(db, config)
+        while True:
+            command = read_command()
+            command(db, config)
