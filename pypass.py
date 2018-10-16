@@ -23,12 +23,13 @@ def sha256(fname):
 def confirm(field, validator=lambda _: True):
     while True:
         try:
-            value1 = input('enter ' + field + ':')
+            value1 = input('enter ' + field + ': ')
             if not validator(value1):
                 continue
-            value2 = input('confirm ' + field + ':')
+            value2 = input('confirm ' + field + ': ')
             if value1 == value2:
                 return value1
+            print('values did not match\n')
         except KeyboardInterrupt:
             return None
 
@@ -80,12 +81,17 @@ def add_password(db, _):
     account = confirm('account')
     if account:
         if account in db:
-            print('account ' + account + ' already exists')
+            print('account ' + account + ' already exists\n')
             return
-        userid = confirm('userid')
-        password = confirm('password')
-        if not password:
-            password = random_password()
+        user_id = confirm('userid')
+        if user_id:
+            print()
+            password = confirm('password')
+            print()
+            if not password:
+                print('Using random password\n')
+                password = random_password(length=20)
+            db[account] = {'user_id': user_id, 'password': password}
 
 
 def view_password(db, _):
@@ -93,7 +99,8 @@ def view_password(db, _):
     for account in db.keys():
         if account_id in account:
             print('Details for account id=' + account)
-            print(json.dumps(db[account], indent=2))
+            print(json.dumps(db[account], indent=2) + '\n')
+    print('press any key to continue\n')
     ready, _, _ = select.select([sys.stdin], [], [], 10)
     if ready:
         sys.stdin.readline()
