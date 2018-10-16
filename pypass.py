@@ -1,5 +1,7 @@
-import gnupg
 import sys
+import os
+import select
+import gnupg
 import hashlib
 import boto3
 import io
@@ -35,7 +37,7 @@ def store_db(json_db, config):
         s3 = session.client('s3')
         s3.put_object(Body=enc_db.data, Bucket=config['BUCKET_NAME'], Key=config['DB_KEY'])
     else:
-        raise Exception('Could not encrypt DB')
+        raise Exception('Could not encrypt DB: ' + enc_db.status)
 
 
 def tbd(config):
@@ -60,7 +62,15 @@ def add_password(db, _):
 
 
 def view_password(db, _):
-    pass
+    account_id = input('account id: ')
+    for account in db.keys():
+        if account_id in account:
+            print('Details for account id=' + account)
+            print(json.dumps(db[account], indent=2))
+    ready, _, _ = select.select([sys.stdin], [], [], 10)
+    if ready:
+        sys.stdin.readline()
+    _ = os.system('clear')
 
 
 def quit(*args):
