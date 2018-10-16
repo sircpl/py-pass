@@ -6,6 +6,8 @@ import hashlib
 import boto3
 import io
 import json
+import random
+import string
 
 CONF_FILE = 'pypass.conf'
 GPG = gnupg.GPG()
@@ -16,6 +18,23 @@ def sha256(fname):
         for chunk in iter(lambda: f.read(4096), b''):
             hash_sha256.update(chunk)
     return hash_sha256.hexdigest()
+
+
+def confirm(field, validator=lambda _: True):
+    while True:
+        try:
+            value1 = input('enter ' + field + ':')
+            if not validator(value1):
+                continue
+            value2 = input('confirm ' + field + ':')
+            if value1 == value2:
+                return value1
+        except KeyboardInterrupt:
+            return None
+
+
+def random_password(length=20):
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
 def fetch_db(config):
@@ -58,7 +77,15 @@ def tbd(config):
 
 
 def add_password(db, _):
-    pass
+    account = confirm('account')
+    if account:
+        if account in db:
+            print('account ' + account + ' already exists')
+            return
+        userid = confirm('userid')
+        password = confirm('password')
+        if not password:
+            password = random_password()
 
 
 def view_password(db, _):
