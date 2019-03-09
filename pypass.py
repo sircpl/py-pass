@@ -12,6 +12,7 @@ import string
 CONF_FILE = 'pypass.conf'
 GPG = gnupg.GPG()
 
+
 def sha256(fname):
     hash_sha256 = hashlib.sha256()
     with open(fname, "rb") as f:
@@ -77,10 +78,10 @@ def tbd(config):
         sys.exit(1)
 
 
-def add_password(db, _):
+def modify_password(db, overwrite=False):
     account = confirm('account')
     if account:
-        if account in db:
+        if account in db and not overwrite:
             print('account ' + account + ' already exists\n')
             return
         user_id = confirm('userid')
@@ -94,17 +95,35 @@ def add_password(db, _):
             db[account] = {'user_id': user_id, 'password': password}
 
 
+def change_password(db, _):
+    modify_password(db, overwrite=True)
+
+
+def add_password(db, _):
+    modify_password(db, overwrite=False)
+
+
+def cls(delay=10):
+    print('press any key to continue\n')
+    ready, _, _ = select.select([sys.stdin], [], [], delay)
+    if ready:
+        sys.stdin.readline()
+    _ = os.system('clear')
+
+
 def view_password(db, _):
     account_id = input('account id: ')
     for account in db.keys():
         if account_id in account:
             print('Details for account id=' + account)
             print(json.dumps(db[account], indent=2) + '\n')
-    print('press any key to continue\n')
-    ready, _, _ = select.select([sys.stdin], [], [], 10)
-    if ready:
-        sys.stdin.readline()
-    _ = os.system('clear')
+    cls()
+
+
+def list_accounts(db, _):
+    for account in db.keys():
+        print(account)
+    cls()
 
 
 def quit(*args):
@@ -113,7 +132,9 @@ def quit(*args):
 
 COMMANDS = {
     'add': add_password,
+    'ls': list_accounts,
     'view': view_password,
+    'change': change_password,
     'store': store_db,
     'quit': quit
 }
