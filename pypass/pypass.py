@@ -4,6 +4,7 @@ import select
 import gnupg
 import hashlib
 import boto3
+import botocore
 import io
 import json
 import random
@@ -43,12 +44,17 @@ def fetch_db(config):
     buf = io.BytesIO()
     session = boto3.Session(profile_name=config['AWS_PROFILE'])
     s3 = session.client('s3')
-    s3.download_fileobj(config['BUCKET_NAME'], config['DB_KEY'], buf)
-    dec_db = GPG.decrypt(buf.getvalue())
-    if dec_db.ok:
-        return json.loads(dec_db.data)
-    else:
-        raise ValueError('Could no decrypt DB file')
+    try:
+        s3.download_fileobj(config['BUCKET_NAME'], config['DB_KEY'], buf)
+        dec_db = GPG.decrypt(buf.getvalue())
+        if dec_db.ok:
+            return json.loads(dec_db.data)
+        else:
+            raise ValueError('Could no decrypt DB file')
+    except botocore.exceptions.ClientError as e:
+        error_code = e.response['Error']['Code']
+        if error_code == '404':
+            return []
 
 
 def store_db(json_db, config):
@@ -78,29 +84,35 @@ def tbd(config):
         sys.exit(1)
 
 
-def modify_password(db, overwrite=False):
-    account = confirm('account')
-    if account:
-        if account in db and not overwrite:
-            print('account ' + account + ' already exists\n')
-            return
-        user_id = confirm('userid')
-        if user_id:
-            print()
-            password = confirm('password')
-            print()
-            if not password:
-                print('Using random password\n')
-                password = random_password(length=20)
-            db[account] = {'user_id': user_id, 'password': password}
+def modify_password(db, account_id, user_id, password=None, overwrite=False):
+    account = None
+    for acc in db:
+        if acc['id'] == account_id:
+            account = acc
+            break
+    if account and not overwrite:
+        return
+    if account is None:
+        account = {'id': account_id}
+    if not password:
+        password = random_password(length=20)
+    account['user_id'] = user_id
+    account['password'] = password
+    db.append(account)
 
 
 def change_password(db, _):
-    modify_password(db, overwrite=True)
+    account_id = confirm('account')
+    user_id = confirm('userid')
+    password = confirm('password')
+    modify_password(db, account_id, user_id, password, overwrite=True)
 
 
 def add_password(db, _):
-    modify_password(db, overwrite=False)
+    account_id = confirm('account')
+    user_id = confirm('userid')
+    password = confirm('password')
+    modify_password(db, account_id, user_id, password, overwrite=False)
 
 
 def cls(delay=10):
@@ -111,17 +123,22 @@ def cls(delay=10):
     _ = os.system('clear')
 
 
-def view_password(db, _):
-    account_id = input('account id: ')
-    for account in db.keys():
-        if account_id in account:
-            print('Details for account id=' + account)
-            print(json.dumps(db[account], indent=2) + '\n')
+def find_accounts(db, account_id):
+    result = []
+    for account in db:
+        if account_id in account['id']:
+            result.append(account)
+    return result
+
+
+def view_password_cmd(db, _):
+    for account in find_accounts(db, input('account id: ')):
+        print(json.dumps(account, indent=2) + '\n')
     cls()
 
 
 def list_accounts(db, _):
-    for account in db.keys():
+    for account in db:
         print(account)
     cls()
 
@@ -133,7 +150,7 @@ def quit(*args):
 COMMANDS = {
     'add': add_password,
     'ls': list_accounts,
-    'view': view_password,
+    'view': view_password_cmd,
     'change': change_password,
     'store': store_db,
     'quit': quit
