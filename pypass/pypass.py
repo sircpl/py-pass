@@ -91,20 +91,21 @@ def modify_password(db, account_id, user_id, password=None, overwrite=False):
             account = acc
             break
     if account and not overwrite:
-        return
+        return False
     if account is None:
         account = {'id': account_id}
-    if not password:
-        password = random_password(length=20)
+        db.append(account)
     account['user_id'] = user_id
     account['password'] = password
-    db.append(account)
+    return True
 
 
 def change_password(db, _):
     account_id = confirm('account')
     user_id = confirm('userid')
     password = confirm('password')
+    if not password:
+        password = random_password(length=20)
     modify_password(db, account_id, user_id, password, overwrite=True)
 
 
@@ -112,7 +113,10 @@ def add_password(db, _):
     account_id = confirm('account')
     user_id = confirm('userid')
     password = confirm('password')
-    modify_password(db, account_id, user_id, password, overwrite=False)
+    if not password:
+        password = random_password(length=20)
+    if not modify_password(db, account_id, user_id, password, overwrite=False):
+        print('Could not add password for account %s - account exists' % account_id)
 
 
 def cls(delay=10):
@@ -145,6 +149,49 @@ def list_accounts(db, _):
 
 def quit(*args):
     sys.exit(0)
+
+
+class PasswordDatabase:
+
+    def __init__(self, db):
+        self.db = db
+        self.initial_db = [d.copy() for d in db]
+
+    def _find_account(self, account_id):
+        for account in self.db:
+            if account['id'] == account_id:
+                return account
+
+    def modify_account(self, account_id, user_id=None, password=None, overwrite=True):
+        account = self._find_account(account_id)
+        if account and not overwrite:
+            return False
+        if account is None:
+            account = {'id': account_id}
+            self.db.append(account)
+        account['user_id'] = user_id
+        account['password'] = password
+        return True
+
+    def add_account(self, account_id, user_id=None, password=None):
+        self.modify_account(account_id, user_id, password, overwrite=False)
+
+    def remove_account(self, account_id):
+        account = self._find_account(account_id)
+        if account:
+            self.db.remove(account)
+
+    def is_modified(self):
+        if len(self.db) != len(self.initial_db):
+            return True
+
+        def sort_key(d):
+            return d['id']
+
+        for a, b in zip(sorted(self.db, key=sort_key), sorted(self.initial_db, key=sort_key)):
+            if a != b:
+                return True
+        return False
 
 
 COMMANDS = {
