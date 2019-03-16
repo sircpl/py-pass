@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 python-gnupg = "*"
 "boto3" = "*"
+coverage = "*"
 
 [dev-packages]
 

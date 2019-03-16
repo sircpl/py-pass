@@ -1,7 +1,7 @@
 import sys
 import os
 import select
-from datetime import datetime, timezone
+from datetime import datetime
 import gnupg
 import hashlib
 import boto3
@@ -139,11 +139,11 @@ class PasswordDatabase:
     def __init__(self, db=None):
         if not db:
             db = []
-        self.db = db
-        self.initial_db = [d.copy() for d in db]
+        self.db = [d.copy() for d in db]
+        self.initial_db = self.copy()
 
     def __iter__(self):
-        return iter([account[self._ACCOUNT_ID] for account in self.db])
+        return iter(self.copy())
 
     def _find_account(self, account_id):
         for account in self.db:
@@ -169,7 +169,7 @@ class PasswordDatabase:
         if self._PASSWORD in account and password != account[self._PASSWORD]:
             account[self._PREVIOUS] = account[self._PASSWORD]
         account[self._PASSWORD] = password
-        account[self._MODIFIED] = datetime.now(timezone.utc).isoformat(' ')
+        account[self._MODIFIED] = datetime.utcnow().isoformat(' ')
         return True
 
     def add_account(self, account_id, user_id=None, password=None):
@@ -179,6 +179,8 @@ class PasswordDatabase:
         account = self._find_account(account_id)
         if account:
             self.db.remove(account)
+            return True
+        return False
 
     def is_modified(self):
         if len(self.db) != len(self.initial_db):
