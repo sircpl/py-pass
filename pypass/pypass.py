@@ -1,6 +1,7 @@
 import sys
 import os
 import select
+from datetime import datetime, timezone
 import gnupg
 import hashlib
 import boto3
@@ -57,8 +58,8 @@ def fetch_db(config):
             return []
 
 
-def store_db(json_db, config):
-    enc_db = GPG.encrypt(json.dumps(json_db), config['GPG_KEY_ID'])
+def store_db(db, config):
+    enc_db = GPG.encrypt(json.dumps(db.copy()), config['GPG_KEY_ID'])
     if enc_db.ok:
         session = boto3.Session(profile_name=config['AWS_PROFILE'])
         s3 = session.client('s3')
@@ -84,29 +85,13 @@ def tbd(config):
         sys.exit(1)
 
 
-def modify_password(db, account_id, user_id, password=None, overwrite=False):
-    account = None
-    for acc in db:
-        if acc['id'] == account_id:
-            account = acc
-            break
-    if account and not overwrite:
-        return False
-    if account is None:
-        account = {'id': account_id}
-        db.append(account)
-    account['user_id'] = user_id
-    account['password'] = password
-    return True
-
-
 def change_password(db, _):
     account_id = confirm('account')
     user_id = confirm('userid')
     password = confirm('password')
     if not password:
         password = random_password(length=20)
-    modify_password(db, account_id, user_id, password, overwrite=True)
+    db.modify_account(account_id, user_id, password, overwrite=True)
 
 
 def add_password(db, _):
@@ -115,7 +100,7 @@ def add_password(db, _):
     password = confirm('password')
     if not password:
         password = random_password(length=20)
-    if not modify_password(db, account_id, user_id, password, overwrite=False):
+    if not db.add_account(account_id, user_id, password):
         print('Could not add password for account %s - account exists' % account_id)
 
 
@@ -127,16 +112,8 @@ def cls(delay=10):
     _ = os.system('clear')
 
 
-def find_accounts(db, account_id):
-    result = []
-    for account in db:
-        if account_id in account['id']:
-            result.append(account)
-    return result
-
-
 def view_password_cmd(db, _):
-    for account in find_accounts(db, input('account id: ')):
+    for account in db.search(input('account id: ')):
         print(json.dumps(account, indent=2) + '\n')
     cls()
 
@@ -153,28 +130,50 @@ def quit(*args):
 
 class PasswordDatabase:
 
-    def __init__(self, db):
+    _ACCOUNT_ID = 'id'
+    _USER_ID = 'user_id'
+    _PASSWORD = 'password'
+    _PREVIOUS = "previous"
+    _MODIFIED = 'modified'
+
+    def __init__(self, db=None):
+        if not db:
+            db = []
         self.db = db
         self.initial_db = [d.copy() for d in db]
 
+    def __iter__(self):
+        return iter([account[self._ACCOUNT_ID] for account in self.db])
+
     def _find_account(self, account_id):
         for account in self.db:
-            if account['id'] == account_id:
+            if account[self._ACCOUNT_ID] == account_id:
                 return account
 
+    def search(self, account_id):
+        return [account.copy() for account in filter(lambda a: account_id in a[self._ACCOUNT_ID], self.db)]
+
+    def copy(self):
+        return [account.copy() for account in self.db]
+
     def modify_account(self, account_id, user_id=None, password=None, overwrite=True):
+        if not account_id or len(account_id) == 0:
+            return False
         account = self._find_account(account_id)
         if account and not overwrite:
             return False
         if account is None:
-            account = {'id': account_id}
+            account = {self._ACCOUNT_ID: account_id}
             self.db.append(account)
-        account['user_id'] = user_id
-        account['password'] = password
+        account[self._USER_ID] = user_id
+        if self._PASSWORD in account and password != account[self._PASSWORD]:
+            account[self._PREVIOUS] = account[self._PASSWORD]
+        account[self._PASSWORD] = password
+        account[self._MODIFIED] = datetime.now(timezone.utc).isoformat(' ')
         return True
 
     def add_account(self, account_id, user_id=None, password=None):
-        self.modify_account(account_id, user_id, password, overwrite=False)
+        return self.modify_account(account_id, user_id, password, overwrite=False)
 
     def remove_account(self, account_id):
         account = self._find_account(account_id)
@@ -216,7 +215,7 @@ def read_command():
 if __name__ == '__main__':
     with open(CONF_FILE, 'r') as f:
         config = json.load(f)
-        db = fetch_db(config)
+        db = PasswordDatabase(fetch_db(config))
         while True:
             command = read_command()
             command(db, config)
