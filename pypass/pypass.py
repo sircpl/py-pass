@@ -58,16 +58,6 @@ def fetch_db(config):
             return []
 
 
-def store_db(db, config):
-    enc_db = GPG.encrypt(json.dumps(db.copy()), config['GPG_KEY_ID'])
-    if enc_db.ok:
-        session = boto3.Session(profile_name=config['AWS_PROFILE'])
-        s3 = session.client('s3')
-        s3.put_object(Body=enc_db.data, Bucket=config['BUCKET_NAME'], Key=config['DB_KEY'])
-    else:
-        raise Exception('Could not encrypt DB: ' + enc_db.status)
-
-
 def tbd(config):
     with open('test', 'w') as f:
         f.write('This is a test mesage')
@@ -85,47 +75,12 @@ def tbd(config):
         sys.exit(1)
 
 
-def change_password(db, _):
-    account_id = confirm('account')
-    user_id = confirm('userid')
-    password = confirm('password')
-    if not password:
-        password = random_password(length=20)
-    db.modify_account(account_id, user_id, password, overwrite=True)
-
-
-def add_password(db, _):
-    account_id = confirm('account')
-    user_id = confirm('userid')
-    password = confirm('password')
-    if not password:
-        password = random_password(length=20)
-    if not db.add_account(account_id, user_id, password):
-        print('Could not add password for account %s - account exists' % account_id)
-
-
 def cls(delay=10):
-    print('press any key to continue\n')
+    print('\npress any key to continue\n')
     ready, _, _ = select.select([sys.stdin], [], [], delay)
     if ready:
         sys.stdin.readline()
     _ = os.system('clear')
-
-
-def view_password_cmd(db, _):
-    for account in db.search(input('account id: ')):
-        print(json.dumps(account, indent=2) + '\n')
-    cls()
-
-
-def list_accounts(db, _):
-    for account in db:
-        print(account)
-    cls()
-
-
-def quit(*args):
-    sys.exit(0)
 
 
 class PasswordDatabase:
@@ -195,13 +150,66 @@ class PasswordDatabase:
         return False
 
 
+# Commands
+
+
+def add_password_cmd(db, _):
+    account_id = confirm('account')
+    user_id = confirm('userid')
+    password = confirm('password')
+    if not password:
+        password = random_password(length=20)
+    if not db.add_account(account_id, user_id, password):
+        print('Could not add password for account %s - account exists' % account_id)
+
+
+def change_password_cmd(db, _):
+    account_id = confirm('account')
+    user_id = confirm('userid')
+    password = confirm('password')
+    if not password:
+        password = random_password(length=20)
+    db.modify_account(account_id, user_id, password, overwrite=True)
+
+
+def delete_account_cmd(db, _):
+    account_id = input('account id: ')
+    if not db.remove_account(account_id):
+        print('Could not delete account ''%s''. Account does not exist')
+
+
+def list_accounts_cmd(db, _):
+    for account in db:
+        print(account)
+
+
+def search_password_cmd(db, _):
+    for account in db.search(input('account id: ')):
+        print(json.dumps(account, indent=2) + '\n')
+
+
+def store_db_cmd(db, config):
+    enc_db = GPG.encrypt(json.dumps(db.copy()), config['GPG_KEY_ID'])
+    if enc_db.ok:
+        session = boto3.Session(profile_name=config['AWS_PROFILE'])
+        s3 = session.client('s3')
+        s3.put_object(Body=enc_db.data, Bucket=config['BUCKET_NAME'], Key=config['DB_KEY'])
+    else:
+        raise Exception('Could not encrypt DB: ' + enc_db.status)
+
+
+def quit_cmd(*args):
+    sys.exit(0)
+
+
 COMMANDS = {
-    'add': add_password,
-    'ls': list_accounts,
-    'view': view_password_cmd,
-    'change': change_password,
-    'store': store_db,
-    'quit': quit
+    'add': add_password_cmd,
+    'change': change_password_cmd,
+    'delete': delete_account_cmd,
+    'ls': list_accounts_cmd,
+    'quit': quit_cmd,
+    'search': search_password_cmd,
+    'store': store_db_cmd,
 }
 
 
@@ -211,13 +219,18 @@ def read_command():
         if command in COMMANDS:
             return COMMANDS[command]
         else:
-            print("Valid commands are %s" % (', '.join([str(k) for k in COMMANDS.keys()])))
+            for c in COMMANDS.keys():
+                if c.startswith(command):
+                    return COMMANDS[c]
+            print("Valid commands are %s" % (', '.join(['(' + str(k)[0] + ')' + str(k)[1:] for k in COMMANDS.keys()])))
 
 
 if __name__ == '__main__':
     with open(CONF_FILE, 'r') as f:
         config = json.load(f)
         db = PasswordDatabase(fetch_db(config))
+        os.system('clear')
         while True:
             command = read_command()
             command(db, config)
+            cls()
