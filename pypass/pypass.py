@@ -12,6 +12,7 @@ import random
 import string
 
 CONF_FILE = 'pypass.conf'
+DEFAULT_PASSWORD_LENGTH = 20
 GPG = gnupg.GPG()
 
 
@@ -23,7 +24,7 @@ def sha256(fname):
     return hash_sha256.hexdigest()
 
 
-def confirm(field, validator=lambda _: True):
+def confirm_input(field, validator=lambda _: True):
     while True:
         try:
             value1 = input('enter ' + field + ': ')
@@ -37,7 +38,11 @@ def confirm(field, validator=lambda _: True):
             return None
 
 
-def random_password(length=20):
+def read_input(field):
+    return input('enter ' + field + ': ')
+
+
+def random_password(length=DEFAULT_PASSWORD_LENGTH):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
@@ -154,26 +159,26 @@ class PasswordDatabase:
 
 
 def add_password_cmd(db, _):
-    account_id = confirm('account')
-    user_id = confirm('userid')
-    password = confirm('password')
+    account_id = confirm_input('account')
+    user_id = confirm_input('userid')
+    password = confirm_input('password')
     if not password:
-        password = random_password(length=20)
+        password = random_password(length=DEFAULT_PASSWORD_LENGTH)
     if not db.add_account(account_id, user_id, password):
         print('Could not add password for account %s - account exists' % account_id)
 
 
 def change_password_cmd(db, _):
-    account_id = confirm('account')
-    user_id = confirm('userid')
-    password = confirm('password')
+    account_id = confirm_input('account')
+    user_id = confirm_input('userid')
+    password = confirm_input('password')
     if not password:
-        password = random_password(length=20)
+        password = random_password(length=DEFAULT_PASSWORD_LENGTH)
     db.modify_account(account_id, user_id, password, overwrite=True)
 
 
 def delete_account_cmd(db, _):
-    account_id = input('account id: ')
+    account_id = confirm_input('account')
     if not db.remove_account(account_id):
         print('Could not delete account ''%s''. Account does not exist')
 
@@ -184,7 +189,7 @@ def list_accounts_cmd(db, _):
 
 
 def search_password_cmd(db, _):
-    for account in db.search(input('account id: ')):
+    for account in db.search(read_input('account')):
         print(json.dumps(account, indent=2) + '\n')
 
 
@@ -215,7 +220,7 @@ COMMANDS = {
 
 def read_command():
     while True:
-        command = input('command: ')
+        command = read_input('command')
         if command in COMMANDS:
             return COMMANDS[command]
         else:
