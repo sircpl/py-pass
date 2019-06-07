@@ -16,7 +16,7 @@ class TestPypass(unittest.TestCase):
     def test_password_db_modified(self):
         db = pypass.PasswordDatabase([])
         self.assertFalse(db.is_modified())
-        db.modify_account('test_account', 'test_user', 'password')
+        db.add_account('test_account', 'test_user', 'password')
         self.assertTrue(db.is_modified())
         db.remove_account('test_account')
         self.assertFalse(db.is_modified())
@@ -50,11 +50,13 @@ class TestPypass(unittest.TestCase):
 
     def test_db_modify(self):
         db = pypass.PasswordDatabase()
-        self.assertFalse(db.modify_account(None))
-        self.assertFalse(db.modify_account(''))
-        self.assertTrue(db.modify_account('test', 'test', 'test'))
-        self.assertFalse(db.modify_account('test', 'test', 'test', overwrite=False))
-        self.assertTrue(db.modify_account('test', 'test', 'update', overwrite=True))
+        self.assertFalse(db.modify_account('test', None, None))
+        self.assertFalse(db.modify_account(None, 'test', None))
+        self.assertFalse(db.modify_account(None, None, 'test'))
+        self.assertFalse(db.modify_account('test', 'test', 'test'))
+        db.add_account('test', 'test', 'test')
+        self.assertFalse(db.modify_account('wrong', 'update', 'update'))
+        self.assertTrue(db.modify_account('test', 'update', 'update'))
         account = db.search('test')[0]
         self.assertEqual('update', account['password'])
         self.assertEqual('test', account['previous'])
@@ -67,15 +69,29 @@ class TestPypass(unittest.TestCase):
             self.assertEqual(account, copy[0])
 
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_add(self, mock_confirm_input):
+    def test_cmd_modify_no_password(self, mock_confirm_input):
         mock_confirm_input.side_effect = ['test_account', 'test_user', None]
         db = unittest.mock.Mock()
-        pypass.add_password_cmd(db, {})
+        pypass.add_account_cmd(db, {})
         db.add_account.assert_called_once()
         account, user, password = db.add_account.call_args[0]
         self.assertEqual(account, 'test_account')
         self.assertEqual(user, 'test_user')
         self.assertEqual(len(password), pypass.DEFAULT_PASSWORD_LENGTH)
+
+    @mock.patch('pypass.pypass.confirm_input')
+    def test_cmd_modify_with_password(self, mock_confirm_input):
+        mock_confirm_input.side_effect = ['test_account', 'test_user', 'test_password']
+        db = unittest.mock.Mock()
+        pypass.add_account_cmd(db, {})
+        db.add_account.assert_called_once()
+        account, user, password = db.add_account.call_args[0]
+        self.assertEqual(account, 'test_account')
+        self.assertEqual(user, 'test_user')
+        self.assertEqual(password, 'test_password')
+
+    def test_cmd_change_password(self):
+        pass
 
 
 if __name__ == '__main__':

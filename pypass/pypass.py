@@ -116,24 +116,35 @@ class PasswordDatabase:
     def copy(self):
         return [account.copy() for account in self.db]
 
-    def modify_account(self, account_id, user_id=None, password=None, overwrite=True):
-        if not account_id or len(account_id) == 0:
+    def modify_account(self, account_id, user_id=None, password=None):
+        if not account_id:
             return False
         account = self._find_account(account_id)
-        if account and not overwrite:
+        if not account:
             return False
-        if account is None:
-            account = {self._ACCOUNT_ID: account_id}
-            self.db.append(account)
-        account[self._USER_ID] = user_id
-        if self._PASSWORD in account and password != account[self._PASSWORD]:
-            account[self._PREVIOUS] = account[self._PASSWORD]
-        account[self._PASSWORD] = password
-        account[self._MODIFIED] = datetime.utcnow().isoformat(' ')
+        if password:
+            if self._PASSWORD in account:
+                account[self._PREVIOUS] = account[self._PASSWORD]
+            account[self._PASSWORD] = password
+        if user_id:
+            account[self._USER_ID] = user_id
+        if password or user_id:
+            account[self._MODIFIED] = datetime.utcnow().isoformat(' ')
         return True
 
-    def add_account(self, account_id, user_id=None, password=None):
-        return self.modify_account(account_id, user_id, password, overwrite=False)
+    def add_account(self, account_id, user_id, password):
+        if not account_id or not user_id or not password:
+            return False
+        account = self._find_account(account_id)
+        if account:
+            return False
+        account = {
+            self._ACCOUNT_ID: account_id,
+            self._USER_ID: user_id,
+            self._PASSWORD: password
+        }
+        self.db.append(account)
+        return True
 
     def remove_account(self, account_id):
         account = self._find_account(account_id)
@@ -158,7 +169,7 @@ class PasswordDatabase:
 # Commands
 
 
-def add_password_cmd(db, _):
+def add_account_cmd(db, _):
     account_id = confirm_input('account')
     user_id = confirm_input('userid')
     password = confirm_input('password')
@@ -168,13 +179,14 @@ def add_password_cmd(db, _):
         print('Could not add password for account %s - account exists' % account_id)
 
 
-def change_password_cmd(db, _):
+def change_account_cmd(db, _):
     account_id = confirm_input('account')
     user_id = confirm_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
-    db.modify_account(account_id, user_id, password, overwrite=True)
+    if not db.modify_account(account_id, user_id, password):
+        print('Could not modify account %s - account does not exist' % account_id)
 
 
 def delete_account_cmd(db, _):
@@ -208,8 +220,8 @@ def quit_cmd(*args):
 
 
 COMMANDS = {
-    'add': add_password_cmd,
-    'change': change_password_cmd,
+    'add': add_account_cmd,
+    'change': change_account_cmd,
     'delete': delete_account_cmd,
     'ls': list_accounts_cmd,
     'quit': quit_cmd,
