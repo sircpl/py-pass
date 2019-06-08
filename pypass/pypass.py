@@ -33,7 +33,7 @@ def confirm_input(field, validator=lambda _: True):
             value2 = input('confirm ' + field + ': ')
             if value1 == value2:
                 return value1
-            print('values did not match\n')
+            print('values for %s did not match\n' % field)
         except KeyboardInterrupt:
             return None
 
@@ -110,6 +110,9 @@ class PasswordDatabase:
             if account[self._ACCOUNT_ID] == account_id:
                 return account
 
+    def contains_account(self, account_id):
+        return True if self._find_account(account_id) else False
+
     def search(self, account_id):
         return [account.copy() for account in filter(lambda a: account_id in a[self._ACCOUNT_ID], self.db)]
 
@@ -171,38 +174,57 @@ class PasswordDatabase:
 
 def add_account_cmd(db, _):
     account_id = confirm_input('account')
+    if db.contains_account(account_id):
+        print('Cannot add account %s - account exists' % account_id)
+        return
     user_id = confirm_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
-    if not db.add_account(account_id, user_id, password):
-        print('Could not add password for account %s - account exists' % account_id)
+    if db.add_account(account_id, user_id, password):
+        print('Added account %s' % account_id)
+    else:
+        print('Could not add account %s' % account_id)
 
 
-def change_account_cmd(db, _):
+def modify_account_cmd(db, _):
     account_id = confirm_input('account')
+    if not db.contains_account(account_id):
+        print('Cannot modify account %s - account does not exist' % account_id)
+        return
     user_id = confirm_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
-    if not db.modify_account(account_id, user_id, password):
-        print('Could not modify account %s - account does not exist' % account_id)
+    if db.modify_account(account_id, user_id, password):
+        print('Modified account %s' % account_id)
+    else:
+        print('Could not modify account %s' % account_id)
 
 
 def delete_account_cmd(db, _):
     account_id = confirm_input('account')
-    if not db.remove_account(account_id):
-        print('Could not delete account ''%s''. Account does not exist')
+    if not db.contains_account(account_id):
+        print('Cannot delete account %s - account does not exist' % account_id)
+        return
+    if db.remove_account(account_id):
+        print('Deleted account %s' % account_id)
+    else:
+        print('Could not delete account %s')
 
 
 def list_accounts_cmd(db, _):
     for account in db:
-        print(account)
+        print(_account_str(account))
 
 
-def search_password_cmd(db, _):
+def search_accounts_cmd(db, _):
     for account in db.search(read_input('account')):
-        print(json.dumps(account, indent=2) + '\n')
+        print(_account_str(account))
+
+
+def _account_str(account):
+    return json.dumps(account, indent=2)
 
 
 def store_db_cmd(db, config):
@@ -221,11 +243,11 @@ def quit_cmd(*args):
 
 COMMANDS = {
     'add': add_account_cmd,
-    'change': change_account_cmd,
+    'modify': modify_account_cmd,
     'delete': delete_account_cmd,
     'ls': list_accounts_cmd,
     'quit': quit_cmd,
-    'search': search_password_cmd,
+    'search': search_accounts_cmd,
     'store': store_db_cmd,
 }
 
