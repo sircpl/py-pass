@@ -6,9 +6,13 @@ from pypass import pypass
 class TestPypass(unittest.TestCase):
 
     def setUp(self):
-        def do_nothing(*args, **kwargs):
-            pass
-        pypass.cls = do_nothing
+        self.patches = [mock.patch('pypass.pypass.cls'), mock.patch('builtins.print')]
+        for p in self.patches:
+            p.start()
+
+    def tearDown(self):
+        for p in self.patches:
+            p.stop()
 
     def test_default_rand_pass_len(self):
         self.assertEqual(len(pypass.random_password()), 20)
@@ -68,17 +72,21 @@ class TestPypass(unittest.TestCase):
         for account in db:
             self.assertEqual(account, copy[0])
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_add_account_exists(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', None, None]
+    def test_cmd_add_account_exists(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = [None]
+        mock_read_input.side_effect = ['test_account', None]
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
         pypass.add_account_cmd(db, {})
         db.add_account.assert_not_called()
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_add_no_password(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', 'test_user', None]
+    def test_cmd_add_no_password(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = [None]
+        mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
         pypass.add_account_cmd(db, {})
@@ -88,9 +96,11 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(user, 'test_user')
         self.assertEqual(len(password), pypass.DEFAULT_PASSWORD_LENGTH)
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_add_with_password(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', 'test_user', 'test_password']
+    def test_cmd_add_with_password(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = ['test_password']
+        mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
         pypass.add_account_cmd(db, {})
@@ -100,17 +110,21 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(user, 'test_user')
         self.assertEqual(password, 'test_password')
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_modify_account_dne(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', None, None]
+    def test_cmd_modify_account_dne(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = [None]
+        mock_read_input.side_effect = ['test_account', None]
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
         pypass.modify_account_cmd(db, {})
         db.modify_account.assert_not_called()
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_modify_account_no_password(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', 'test_user', None]
+    def test_cmd_modify_account_no_password(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = [None]
+        mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
         pypass.modify_account_cmd(db, {})
@@ -120,9 +134,11 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(user, 'test_user')
         self.assertEqual(len(password), pypass.DEFAULT_PASSWORD_LENGTH)
 
+    @mock.patch('pypass.pypass.read_input')
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_modify_account_with_password(self, mock_confirm_input):
-        mock_confirm_input.side_effect = ['test_account', 'test_user', 'test_password']
+    def test_cmd_modify_account_with_password(self, mock_confirm_input, mock_read_input):
+        mock_confirm_input.side_effect = ['test_password']
+        mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
         pypass.modify_account_cmd(db, {})
@@ -133,7 +149,7 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(password, 'test_password')
 
     @mock.patch('pypass.pypass.confirm_input')
-    def test_cmd_delete_account_dne(self, mock_confirm_input):
+    def test_cmd_delete_account_dne(self, mock_confirm_input, *args):
         mock_confirm_input.side_effect = ['test_account']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False

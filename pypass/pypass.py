@@ -10,6 +10,7 @@ import io
 import json
 import random
 import string
+from collections import OrderedDict
 
 CONF_FILE = 'pypass.conf'
 DEFAULT_PASSWORD_LENGTH = 20
@@ -24,22 +25,19 @@ def sha256(fname):
     return hash_sha256.hexdigest()
 
 
-def confirm_input(field, validator=lambda _: True):
+def confirm_input(field):
     while True:
-        try:
-            value1 = input('enter ' + field + ': ')
-            if not validator(value1):
-                continue
-            value2 = input('confirm ' + field + ': ')
-            if value1 == value2:
-                return value1
-            print('values for %s did not match\n' % field)
-        except KeyboardInterrupt:
+        value1 = input('Enter ' + field + ': ')
+        if not value1:
             return None
+        value2 = input('Confirm ' + field + ': ')
+        if value1 == value2:
+            return value1
+        print('values for %s did not match\n' % field)
 
 
 def read_input(field):
-    return input('enter ' + field + ': ')
+    return input('Enter ' + field + ': ')
 
 
 def random_password(length=DEFAULT_PASSWORD_LENGTH):
@@ -81,7 +79,7 @@ def tbd(config):
 
 
 def cls(delay=10):
-    print('\npress any key to continue\n')
+    print('\nPress enter to continue\n')
     ready, _, _ = select.select([sys.stdin], [], [], delay)
     if ready:
         sys.stdin.readline()
@@ -110,6 +108,10 @@ class PasswordDatabase:
             if account[self._ACCOUNT_ID] == account_id:
                 return account
 
+    @staticmethod
+    def _modified_timestamp():
+        return datetime.utcnow().isoformat(' ')
+
     def contains_account(self, account_id):
         return True if self._find_account(account_id) else False
 
@@ -132,7 +134,7 @@ class PasswordDatabase:
         if user_id:
             account[self._USER_ID] = user_id
         if password or user_id:
-            account[self._MODIFIED] = datetime.utcnow().isoformat(' ')
+            account[self._MODIFIED] = self._modified_timestamp()
         return True
 
     def add_account(self, account_id, user_id, password):
@@ -141,11 +143,13 @@ class PasswordDatabase:
         account = self._find_account(account_id)
         if account:
             return False
-        account = {
-            self._ACCOUNT_ID: account_id,
-            self._USER_ID: user_id,
-            self._PASSWORD: password
-        }
+        account = OrderedDict([
+            (self._ACCOUNT_ID, account_id),
+            (self._USER_ID, user_id),
+            (self._PASSWORD, password),
+            (self._PREVIOUS, None),
+            (self._MODIFIED, self._modified_timestamp())
+        ])
         self.db.append(account)
         return True
 
@@ -161,7 +165,7 @@ class PasswordDatabase:
             return True
 
         def sort_key(d):
-            return d['id']
+            return d[self._ACCOUNT_ID]
 
         for a, b in zip(sorted(self.db, key=sort_key), sorted(self.initial_db, key=sort_key)):
             if a != b:
@@ -173,11 +177,14 @@ class PasswordDatabase:
 
 
 def add_account_cmd(db, _):
-    account_id = confirm_input('account')
+    account_id = read_input('account')
+    if not account_id:
+        print('Must specify account')
+        return
     if db.contains_account(account_id):
         print('Cannot add account %s - account exists' % account_id)
         return
-    user_id = confirm_input('userid')
+    user_id = read_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
@@ -188,11 +195,11 @@ def add_account_cmd(db, _):
 
 
 def modify_account_cmd(db, _):
-    account_id = confirm_input('account')
+    account_id = read_input('account')
     if not db.contains_account(account_id):
         print('Cannot modify account %s - account does not exist' % account_id)
         return
-    user_id = confirm_input('userid')
+    user_id = read_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
@@ -227,7 +234,7 @@ def _account_str(account):
     return json.dumps(account, indent=2)
 
 
-def store_db_cmd(db, config):
+def write_db_cmd(db, config):
     enc_db = GPG.encrypt(json.dumps(db.copy()), config['GPG_KEY_ID'])
     if enc_db.ok:
         session = boto3.Session(profile_name=config['AWS_PROFILE'])
@@ -237,7 +244,11 @@ def store_db_cmd(db, config):
         raise Exception('Could not encrypt DB: ' + enc_db.status)
 
 
-def quit_cmd(*args):
+def quit_cmd(db, *args):
+    if db.is_modified():
+        e = input('Unsaved changes exist. Quit? (y/n): ')
+        if e.lower() != 'y':
+            return
     sys.exit(0)
 
 
@@ -248,7 +259,7 @@ COMMANDS = {
     'ls': list_accounts_cmd,
     'quit': quit_cmd,
     'search': search_accounts_cmd,
-    'store': store_db_cmd,
+    'write': write_db_cmd,
 }
 
 
@@ -257,11 +268,11 @@ def read_command():
         command = read_input('command')
         if command in COMMANDS:
             return COMMANDS[command]
-        else:
+        elif command:
             for c in COMMANDS.keys():
                 if c.startswith(command):
                     return COMMANDS[c]
-            print("Valid commands are %s" % (', '.join(['(' + str(k)[0] + ')' + str(k)[1:] for k in COMMANDS.keys()])))
+        print("Valid commands are %s" % (', '.join(['(' + str(k)[0] + ')' + str(k)[1:] for k in COMMANDS.keys()])))
 
 
 if __name__ == '__main__':
@@ -270,6 +281,9 @@ if __name__ == '__main__':
         db = PasswordDatabase(fetch_db(config))
         os.system('clear')
         while True:
-            command = read_command()
-            command(db, config)
-            cls()
+            try:
+                command = read_command()
+                command(db, config)
+                cls()
+            except KeyboardInterrupt:
+                _ = os.system('clear')
