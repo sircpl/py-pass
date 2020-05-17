@@ -11,6 +11,7 @@ import json
 import random
 import string
 from collections import OrderedDict
+from pypass.load import LineParser
 
 CONF_FILE = 'pypass.conf'
 DEFAULT_PASSWORD_LENGTH = 20
@@ -278,12 +279,25 @@ def read_command():
 if __name__ == '__main__':
     with open(CONF_FILE, 'r') as f:
         config = json.load(f)
-        db = PasswordDatabase(fetch_db(config))
-        os.system('clear')
-        while True:
-            try:
-                command = read_command()
-                command(db, config)
-                cls()
-            except KeyboardInterrupt:
-                _ = os.system('clear')
+        db = None
+        if len(sys.argv) > 1 and sys.argv[1] == 'import':
+            db = PasswordDatabase()
+            for line in sys.stdin:
+                try:
+                    lp = LineParser(line)
+                    db.add_account(lp.account, lp.user, lp.password)
+                    print(lp)
+                except ValueError as e:
+                    print('could not parse: ' + line)
+            write_db_cmd(db, config)
+        else:
+            db = PasswordDatabase(fetch_db(config))
+            os.system('clear')
+
+            while True:
+                try:
+                    command = read_command()
+                    command(db, config)
+                    cls()
+                except KeyboardInterrupt:
+                    _ = os.system('clear')

@@ -1,2 +1,2 @@
 #!/bin/bash
-pipenv run python pypass/pypass.py
+PYTHONPATH=. pipenv run python pypass/main.py
