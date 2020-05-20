@@ -1,4 +1,5 @@
 import sys
+import logging
 import os
 import select
 from datetime import datetime
@@ -16,6 +17,7 @@ from pypass.load import LineParser
 CONF_FILE = 'pypass.conf'
 DEFAULT_PASSWORD_LENGTH = 20
 GPG = gnupg.GPG()
+LOGGER = logging.getLogger('pypass')
 
 
 def sha256(fname):
@@ -95,11 +97,12 @@ class PasswordDatabase:
     _PREVIOUS = "previous"
     _MODIFIED = 'modified'
 
-    def __init__(self, db=None):
+    def __init__(self, db=None, persistence_strategy=lambda pwdb: False):
         if not db:
             db = []
         self.db = [d.copy() for d in db]
         self.initial_db = self.copy()
+        self.persistence_strategy = persistence_strategy
 
     def __iter__(self):
         return iter(self.copy())
@@ -173,6 +176,18 @@ class PasswordDatabase:
                 return True
         return False
 
+    def persist(self) -> bool:
+        if not self.is_modified():
+            return False
+        try:
+            result = self.persistence_strategy(self)
+            if result:
+                self.initial_db = self.db.copy()
+            return result
+        except Exception as e:
+            print(e)
+            return False
+
 
 # Commands
 
@@ -235,12 +250,23 @@ def _account_str(account):
     return json.dumps(account, indent=2)
 
 
-def write_db_cmd(db, config):
+def write_db_cmd(db, _):
+    if db.persist():
+        print("Persisted database succesfully")
+    else:
+        print("Failed to persist database")
+
+
+def write_db_to_s3(db, config) -> bool:
     enc_db = GPG.encrypt(json.dumps(db.copy()), config['GPG_KEY_ID'])
     if enc_db.ok:
-        session = boto3.Session(profile_name=config['AWS_PROFILE'])
-        s3 = session.client('s3')
-        s3.put_object(Body=enc_db.data, Bucket=config['BUCKET_NAME'], Key=config['DB_KEY'])
+        try:
+            session = boto3.Session(profile_name=config['AWS_PROFILE'])
+            s3 = session.client('s3')
+            s3.put_object(Body=enc_db.data, Bucket=config['BUCKET_NAME'], Key=config['DB_KEY'])
+            return True
+        except Exception as e:
+            LOGGER.exception(e)
     else:
         raise Exception('Could not encrypt DB: ' + enc_db.status)
 
@@ -277,7 +303,8 @@ def read_command():
 
 
 if __name__ == '__main__':
-    with open(CONF_FILE, 'r') as f:
+    conf = sys.argv[1] if len(sys.argv) > 1 else CONF_FILE
+    with open(conf, 'r') as f:
         config = json.load(f)
         db = None
         if len(sys.argv) > 1 and sys.argv[1] == 'import':
@@ -291,7 +318,7 @@ if __name__ == '__main__':
                     print('could not parse: ' + line)
             write_db_cmd(db, config)
         else:
-            db = PasswordDatabase(fetch_db(config))
+            db = PasswordDatabase(fetch_db(config), lambda pwdb: write_db_to_s3(pwdb, config))
             os.system('clear')
 
             while True:
