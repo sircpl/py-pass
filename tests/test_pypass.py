@@ -1,12 +1,13 @@
 import unittest
 from unittest import mock
-from pypass import pypass
+from pypass.main import PasswordDatabase
+from pypass import main
 
 
 class TestPypass(unittest.TestCase):
 
     def setUp(self):
-        self.patches = [mock.patch('pypass.pypass.cls'), mock.patch('builtins.print')]
+        self.patches = [mock.patch('pypass.main.cls'), mock.patch('builtins.print')]
         for p in self.patches:
             p.start()
 
@@ -15,21 +16,21 @@ class TestPypass(unittest.TestCase):
             p.stop()
 
     def test_default_rand_pass_len(self):
-        self.assertEqual(len(pypass.random_password()), 20)
+        self.assertEqual(len(main.random_password()), 20)
 
     def test_password_db_modified(self):
-        db = pypass.PasswordDatabase([])
+        db = PasswordDatabase([])
         self.assertFalse(db.is_modified())
         db.add_account('test_account', 'test_user', 'password')
         self.assertTrue(db.is_modified())
         db.remove_account('test_account')
         self.assertFalse(db.is_modified())
-        db = pypass.PasswordDatabase([{'id': 'test_account'}])
+        db = PasswordDatabase([{PasswordDatabase._ACCOUNT_ID: 'test_account'}])
         db.modify_account('test_account', password='password')
         self.assertTrue(db.is_modified())
 
     def test_db_search(self):
-        db = pypass.PasswordDatabase()
+        db = PasswordDatabase()
         db.add_account('test', 'test', 'test')
         db.add_account('tester', 'tester', 'tester')
         db.add_account('testing', 'testing', 'testing')
@@ -38,131 +39,144 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(3, len(result))
 
     def test_db_remove(self):
-        db = pypass.PasswordDatabase()
+        db = PasswordDatabase()
         self.assertFalse(db.remove_account('test'))
         db.add_account('test', 'test', 'test')
         self.assertTrue(db.remove_account('test'))
 
     def test_db_copy(self):
-        db = pypass.PasswordDatabase()
+        db = PasswordDatabase()
         db.add_account('test', 'test', 'test')
         copy = db.copy()
-        db = pypass.PasswordDatabase(copy)
+        db = PasswordDatabase(copy)
         self.assertEqual(copy, db.copy())
         copy.append('modification')
         self.assertNotEqual(copy, db.copy())
 
     def test_db_modify(self):
-        db = pypass.PasswordDatabase()
-        self.assertFalse(db.modify_account('test', None, None))
-        self.assertFalse(db.modify_account(None, 'test', None))
-        self.assertFalse(db.modify_account(None, None, 'test'))
-        self.assertFalse(db.modify_account('test', 'test', 'test'))
+        db = PasswordDatabase()
+        self.assertFalse(db.modify_account('test', None, None, None))
+        self.assertFalse(db.modify_account(None, 'test', None, None))
+        self.assertFalse(db.modify_account(None, None, 'test', None))
+        self.assertFalse(db.modify_account(None, None, None, 'test'))
+        self.assertFalse(db.modify_account('test', 'test', 'test', 'test'))
         db.add_account('test', 'test', 'test')
-        self.assertFalse(db.modify_account('wrong', 'update', 'update'))
-        self.assertTrue(db.modify_account('test', 'update', 'update'))
+        self.assertFalse(db.modify_account('wrong', 'update', 'update', 'update'))
+        self.assertTrue(db.modify_account('test', None, 'update', 'update'))
         account = db.search('test')[0]
-        self.assertEqual('update', account['password'])
-        self.assertEqual('test', account['previous'])
+        self.assertEqual('update', account[PasswordDatabase._USER_ID])
+        self.assertEqual('update', account[PasswordDatabase._PASSWORD])
+        self.assertEqual('test', account[PasswordDatabase._PREVIOUS])
+
+        # test that you can modify the account id
+        self.assertTrue(db.modify_account('test', 'update'))
+        self.assertFalse(db.search('test'))
+        account = db.search('update')[0]
+        self.assertEqual('update', account[PasswordDatabase._USER_ID])
+        self.assertEqual('update', account[PasswordDatabase._PASSWORD])
+        self.assertEqual('test', account[PasswordDatabase._PREVIOUS])
 
     def test_db_iterator(self):
-        db = pypass.PasswordDatabase()
+        db = PasswordDatabase()
         db.add_account('test', 'test', 'test')
         copy = db.copy()
         for account in db:
             self.assertEqual(account, copy[0])
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_add_account_exists(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = [None]
         mock_read_input.side_effect = ['test_account', None]
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
-        pypass.add_account_cmd(db, {})
+        main.add_account_cmd(db, {})
         db.add_account.assert_not_called()
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_add_no_password(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = [None]
         mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
-        pypass.add_account_cmd(db, {})
+        main.add_account_cmd(db, {})
         db.add_account.assert_called_once()
         account, user, password = db.add_account.call_args[0]
         self.assertEqual(account, 'test_account')
         self.assertEqual(user, 'test_user')
-        self.assertEqual(len(password), pypass.DEFAULT_PASSWORD_LENGTH)
+        self.assertEqual(len(password), main.DEFAULT_PASSWORD_LENGTH)
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_add_with_password(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = ['test_password']
         mock_read_input.side_effect = ['test_account', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
-        pypass.add_account_cmd(db, {})
+        main.add_account_cmd(db, {})
         db.add_account.assert_called_once()
         account, user, password = db.add_account.call_args[0]
         self.assertEqual(account, 'test_account')
         self.assertEqual(user, 'test_user')
         self.assertEqual(password, 'test_password')
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_modify_account_dne(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = [None]
         mock_read_input.side_effect = ['test_account', None]
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
-        pypass.modify_account_cmd(db, {})
+        main.modify_account_cmd(db, {})
         db.modify_account.assert_not_called()
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_modify_account_no_password(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = [None]
-        mock_read_input.side_effect = ['test_account', 'test_user']
+        mock_read_input.side_effect = ['test_account', '', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
-        pypass.modify_account_cmd(db, {})
+        main.modify_account_cmd(db, {})
         db.modify_account.assert_called_once()
-        account, user, password = db.modify_account.call_args[0]
+        account, new_account_id, user, password = db.modify_account.call_args[0]
         self.assertEqual(account, 'test_account')
+        self.assertEqual(new_account_id, 'test_account')
         self.assertEqual(user, 'test_user')
-        self.assertEqual(len(password), pypass.DEFAULT_PASSWORD_LENGTH)
+        self.assertEqual(len(password), main.DEFAULT_PASSWORD_LENGTH)
 
-    @mock.patch('pypass.pypass.read_input')
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.read_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_modify_account_with_password(self, mock_confirm_input, mock_read_input):
         mock_confirm_input.side_effect = ['test_password']
-        mock_read_input.side_effect = ['test_account', 'test_user']
+        mock_read_input.side_effect = ['test_account', '', 'test_user']
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
-        pypass.modify_account_cmd(db, {})
+        main.modify_account_cmd(db, {})
         db.modify_account.assert_called_once()
-        account, user, password = db.modify_account.call_args[0]
+        account, new_account_id, user, password = db.modify_account.call_args[0]
         self.assertEqual(account, 'test_account')
+        self.assertEqual(new_account_id, 'test_account')
         self.assertEqual(user, 'test_user')
         self.assertEqual(password, 'test_password')
 
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_delete_account_dne(self, mock_confirm_input, *args):
         mock_confirm_input.side_effect = ['test_account']
         db = unittest.mock.Mock()
         db.contains_account.return_value = False
-        pypass.delete_account_cmd(db, {})
+        main.delete_account_cmd(db, {})
         db.delete_account.assert_not_called()
 
-    @mock.patch('pypass.pypass.confirm_input')
+    @mock.patch('pypass.main.confirm_input')
     def test_cmd_delete_account_exists(self, mock_confirm_input):
         mock_confirm_input.side_effect = ['test_account']
         db = unittest.mock.Mock()
         db.contains_account.return_value = True
-        pypass.delete_account_cmd(db, {})
+        main.delete_account_cmd(db, {})
         db.remove_account.assert_called_once()
+
 
 if __name__ == '__main__':
     unittest.main()

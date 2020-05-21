@@ -125,19 +125,21 @@ class PasswordDatabase:
     def copy(self):
         return [account.copy() for account in self.db]
 
-    def modify_account(self, account_id, user_id=None, password=None):
+    def modify_account(self, account_id, new_account_id=None, user_id=None, password=None):
         if not account_id:
             return False
         account = self._find_account(account_id)
         if not account:
             return False
+        if new_account_id:
+            account[self._ACCOUNT_ID] = new_account_id
         if password:
             if self._PASSWORD in account:
                 account[self._PREVIOUS] = account[self._PASSWORD]
             account[self._PASSWORD] = password
         if user_id:
             account[self._USER_ID] = user_id
-        if password or user_id:
+        if new_account_id or password or user_id:
             account[self._MODIFIED] = self._modified_timestamp()
         return True
 
@@ -215,11 +217,14 @@ def modify_account_cmd(db, _):
     if not db.contains_account(account_id):
         print('Cannot modify account %s - account does not exist' % account_id)
         return
+    new_account_id = read_input('account')
+    if not new_account_id:
+        new_account_id = account_id
     user_id = read_input('userid')
     password = confirm_input('password')
     if not password:
         password = random_password(length=DEFAULT_PASSWORD_LENGTH)
-    if db.modify_account(account_id, user_id, password):
+    if db.modify_account(account_id, new_account_id, user_id, password):
         print('Modified account %s' % account_id)
     else:
         print('Could not modify account %s' % account_id)
