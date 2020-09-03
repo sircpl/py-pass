@@ -40,7 +40,7 @@ def confirm_input(field):
 
 
 def read_input(field):
-    return input('Enter ' + field + ': ')
+    return console_input('Enter ' + field + ': ')
 
 
 def random_password(length=DEFAULT_PASSWORD_LENGTH):
@@ -87,6 +87,14 @@ def cls(delay=10):
     if ready:
         sys.stdin.readline()
     _ = os.system('clear')
+
+
+def console_input(prompt, delay=10):
+    print(prompt, end='', flush=True)
+    ready, _, _ = select.select([sys.stdin], [], [], delay)
+    if ready:
+        return sys.stdin.readline().strip()
+    print()
 
 
 class PasswordDatabase:
@@ -278,9 +286,10 @@ def write_db_to_s3(db, config) -> bool:
 
 def quit_cmd(db, *args):
     if db.is_modified():
-        e = input('Unsaved changes exist. Quit? (y/n): ')
-        if e.lower() != 'y':
+        should_quit = console_input('Unsaved changes exist. Quit? (y/n): ', delay=30)
+        if should_quit and should_quit.lower() != 'y':
             return
+    print('Goodbye!')
     sys.exit(0)
 
 
@@ -298,6 +307,8 @@ COMMANDS = {
 def read_command():
     while True:
         command = read_input('command')
+        if command is None:
+            command = 'quit'
         if command in COMMANDS:
             return COMMANDS[command]
         elif command:
@@ -305,6 +316,7 @@ def read_command():
                 if c.startswith(command):
                     return COMMANDS[c]
         print("Valid commands are %s" % (', '.join(['(' + str(k)[0] + ')' + str(k)[1:] for k in COMMANDS.keys()])))
+        cls()
 
 
 if __name__ == '__main__':
