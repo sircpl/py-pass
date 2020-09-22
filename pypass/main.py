@@ -225,7 +225,7 @@ def modify_account_cmd(db, _):
     if not db.contains_account(account_id):
         print('Cannot modify account %s - account does not exist' % account_id)
         return
-    new_account_id = read_input('account')
+    new_account_id = read_input('new account')
     if not new_account_id:
         new_account_id = account_id
     user_id = read_input('userid')
