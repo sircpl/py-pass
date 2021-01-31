@@ -63,16 +63,19 @@ def cls(delay=10):
     _ = os.system('clear')
 
 
-def console_input(prompt, delay=10):
+class TimeoutError(Exception):
+    pass
+
+
+def console_input(prompt, timeout=10):
     print(prompt, end='', flush=True)
-    ready, _, _ = select.select([sys.stdin], [], [], delay)
+    ready, _, _ = select.select([sys.stdin], [], [], timeout)
     if ready:
         return sys.stdin.readline().strip()
-    print()
+    raise TimeoutError()
 
 
 class PasswordDatabase:
-
     _ACCOUNT_ID = 'id'
     _USER_ID = 'user_id'
     _PASSWORD = 'password'
@@ -258,11 +261,15 @@ def write_db_to_s3(db, config) -> bool:
         raise Exception('Could not encrypt DB: ' + enc_db.status)
 
 
-def quit_cmd(db, *args):
+def quit_cmd(db, _):
     if db.is_modified():
-        should_quit = console_input('Unsaved changes exist. Quit? (y/n): ', delay=30)
-        if should_quit and should_quit.lower() != 'y':
-            return
+        timeout = 60
+        try:
+            should_quit = console_input('Unsaved changes exist. Quit? (y/n): ', timeout)
+            if should_quit.lower() != 'y':
+                return
+        except TimeoutError:
+            print('\nTimed out after %s seconds. Unsaved changes were not persisted' % timeout)
     print('Goodbye!')
     sys.exit(0)
 
