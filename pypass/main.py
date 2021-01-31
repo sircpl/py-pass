@@ -126,7 +126,8 @@ class PasswordDatabase:
             account[self._USER_ID] = user_id
         if new_account_id or password or user_id:
             account[self._MODIFIED] = self._modified_timestamp()
-        return True
+            return True
+        return False
 
     def add_account(self, account_id, user_id, password):
         if not account_id or not user_id or not password:
@@ -178,6 +179,16 @@ class PasswordDatabase:
 
 # Commands
 
+MODIFY_PROMPT = '''Which attribute would you like to modify?
+    1) account_id
+    2) user_id
+    3) password
+'''
+MODIFY_PASSWORD_PROMPT = '''How would you like to modify the password?
+    1) randomize
+    2) manually
+'''
+
 
 def add_account_cmd(db, _):
     account_id = read_input('account')
@@ -202,17 +213,29 @@ def modify_account_cmd(db, _):
     if not db.contains_account(account_id):
         print('Cannot modify account %s - account does not exist' % account_id)
         return
-    new_account_id = read_input('new account')
-    if not new_account_id:
-        new_account_id = account_id
-    user_id = read_input('userid')
-    password = confirm_input('password')
-    if not password:
-        password = random_password(length=DEFAULT_PASSWORD_LENGTH)
+    new_account_id, user_id, password = None, None, None
+    try:
+        attribute_id = console_input(MODIFY_PROMPT)
+        if attribute_id == '1':
+            new_account_id = read_input('new_account_id')
+        elif attribute_id == '2':
+            user_id = read_input('userid')
+        elif attribute_id == '3':
+            password_id = console_input(MODIFY_PASSWORD_PROMPT)
+            if password_id == '1':
+                password = random_password()
+            elif password_id == '2':
+                password = confirm_input('password')
+            else:
+                print('Invalid selection')
+        else:
+            print('Invalid selection')
+    except TimeoutError:
+        pass
     if db.modify_account(account_id, new_account_id, user_id, password):
         print('Modified account %s' % account_id)
     else:
-        print('Could not modify account %s' % account_id)
+        print('No modifications made to account %s' % account_id)
 
 
 def delete_account_cmd(db, _):
@@ -287,8 +310,9 @@ COMMANDS = {
 
 def read_command():
     while True:
-        command = read_input('command')
-        if command is None:
+        try:
+            command = read_input('command')
+        except TimeoutError:
             command = 'quit'
         if command in COMMANDS:
             return COMMANDS[command]
