@@ -261,8 +261,11 @@ def list_accounts_cmd(db, _):
 
 
 def search_accounts_cmd(db, _):
-    for account in db.search(read_input('account')):
-        print(_account_str(account))
+    try:
+        for account in db.search(read_input('account')):
+            print(_account_str(account))
+    except TimeoutError:
+        pass
 
 
 def _account_str(account):
@@ -346,7 +349,7 @@ if __name__ == '__main__':
                     print('could not parse: ' + line)
             write_db_cmd(db, config)
         else:
-            db = PasswordDatabase(fetch_db(config), lambda pwdb: write_db_to_s3(pwdb, config))
+            db = PasswordDatabase(fetch_db(config), lambda pw_db: write_db_to_s3(pw_db, config))
             os.system('clear')
 
             while True:
@@ -356,3 +359,4 @@ if __name__ == '__main__':
                     cls()
                 except KeyboardInterrupt:
                     _ = os.system('clear')
+
