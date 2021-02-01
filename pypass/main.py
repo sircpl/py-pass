@@ -21,13 +21,13 @@ LOGGER = logging.getLogger('pypass')
 
 def confirm_input(field):
     while True:
-        value1 = input('Enter ' + field + ': ')
+        value1 = console_input('Enter ' + field + ': ')
         if not value1:
             return None
-        value2 = input('Confirm ' + field + ': ')
+        value2 = console_input('Confirm ' + field + ': ')
         if value1 == value2:
             return value1
-        print('values for %s did not match\n' % field)
+        print('Entered values for %s did not match\n' % field)
 
 
 def read_input(field):
@@ -72,6 +72,7 @@ def console_input(prompt, timeout=10):
     ready, _, _ = select.select([sys.stdin], [], [], timeout)
     if ready:
         return sys.stdin.readline().strip()
+    print()
     raise TimeoutError()
 
 
@@ -190,63 +191,65 @@ MODIFY_PASSWORD_PROMPT = '''How would you like to modify the password?
 '''
 
 
-def add_account_cmd(db, _):
-    account_id = read_input('account')
-    if not account_id:
-        print('Must specify account')
-        return
-    if db.contains_account(account_id):
-        print('Cannot add account %s - account exists' % account_id)
-        return
-    user_id = read_input('userid')
-    password = confirm_input('password')
-    if not password:
-        password = random_password(length=DEFAULT_PASSWORD_LENGTH)
-    if db.add_account(account_id, user_id, password):
-        print('Added account %s' % account_id)
+def password_input():
+    password_choice = console_input(MODIFY_PASSWORD_PROMPT)
+    if password_choice == '1':
+        return random_password()
+    elif password_choice == '2':
+        return confirm_input('password')
     else:
-        print('Could not add account %s' % account_id)
+        print('Invalid selection')
+
+
+def add_account_cmd(db, _):
+    try:
+        account_id = read_input('account_id')
+        if db.contains_account(account_id):
+            print('Cannot add account "%s". Account exists' % account_id)
+            return
+        user_id = read_input('user_id')
+        password = password_input()
+        if db.add_account(account_id, user_id, password):
+            print('Added account "%s"' % account_id)
+        else:
+            print('Failed to add account')
+    except TimeoutError:
+        pass
 
 
 def modify_account_cmd(db, _):
-    account_id = read_input('account')
-    if not db.contains_account(account_id):
-        print('Cannot modify account %s - account does not exist' % account_id)
-        return
-    new_account_id, user_id, password = None, None, None
     try:
+        account_id = read_input('account_id')
+        if not db.contains_account(account_id):
+            print('Cannot modify account "%s". Account does not exist' % account_id)
+            return
+        new_account_id, user_id, password = None, None, None
         attribute_id = console_input(MODIFY_PROMPT)
         if attribute_id == '1':
             new_account_id = read_input('new_account_id')
         elif attribute_id == '2':
-            user_id = read_input('userid')
+            user_id = read_input('user_id')
         elif attribute_id == '3':
-            password_id = console_input(MODIFY_PASSWORD_PROMPT)
-            if password_id == '1':
-                password = random_password()
-            elif password_id == '2':
-                password = confirm_input('password')
-            else:
-                print('Invalid selection')
+            password = password_input()
         else:
             print('Invalid selection')
+        if db.modify_account(account_id, new_account_id, user_id, password):
+            print('Modified account "%s"' % new_account_id if new_account_id else account_id)
+        else:
+            print('No modifications made to account %s' % account_id)
     except TimeoutError:
         pass
-    if db.modify_account(account_id, new_account_id, user_id, password):
-        print('Modified account %s' % account_id)
-    else:
-        print('No modifications made to account %s' % account_id)
 
 
 def delete_account_cmd(db, _):
     account_id = confirm_input('account')
     if not db.contains_account(account_id):
-        print('Cannot delete account %s - account does not exist' % account_id)
+        print('Cannot delete account "%s". Account does not exist' % account_id)
         return
     if db.remove_account(account_id):
-        print('Deleted account %s' % account_id)
+        print('Deleted account "%s"' % account_id)
     else:
-        print('Could not delete account %s')
+        print('Failed to delete account "%s"' % account_id)
 
 
 def list_accounts_cmd(db, _):

@@ -88,33 +88,19 @@ class TestPypass(unittest.TestCase):
 
     @mock.patch('pypass.main.read_input')
     @mock.patch('pypass.main.confirm_input')
-    def test_cmd_add_account_exists(self, mock_confirm_input, mock_read_input):
+    def test_cmd_add_account_exists(self, mock_confirm_input: Mock, mock_read_input: Mock):
         mock_confirm_input.return_value = None
-        mock_read_input.side_effect = ['test_account', None]
+        mock_read_input.return_value = 'test_account'
         db = Mock()
         db.contains_account.return_value = True
         main.add_account_cmd(db, {})
         db.add_account.assert_not_called()
 
+    @mock.patch('pypass.main.password_input')
     @mock.patch('pypass.main.read_input')
-    @mock.patch('pypass.main.confirm_input')
-    def test_cmd_add_no_password(self, mock_confirm_input, mock_read_input):
-        mock_confirm_input.return_value = None
+    def test_cmd_add_account(self, mock_read_input: Mock, mock_password_input: Mock):
         mock_read_input.side_effect = ['test_account', 'test_user']
-        db = Mock()
-        db.contains_account.return_value = False
-        main.add_account_cmd(db, {})
-        db.add_account.assert_called_once()
-        account, user, password = db.add_account.call_args[0]
-        self.assertEqual(account, 'test_account')
-        self.assertEqual(user, 'test_user')
-        self.assertEqual(len(password), main.DEFAULT_PASSWORD_LENGTH)
-
-    @mock.patch('pypass.main.read_input')
-    @mock.patch('pypass.main.confirm_input')
-    def test_cmd_add_with_password(self, mock_confirm_input, mock_read_input):
-        mock_confirm_input.return_value = 'test_password'
-        mock_read_input.side_effect = ['test_account', 'test_user']
+        mock_password_input.return_value = 'test_password'
         db = Mock()
         db.contains_account.return_value = False
         main.add_account_cmd(db, {})
@@ -123,6 +109,32 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(account, 'test_account')
         self.assertEqual(user, 'test_user')
         self.assertEqual(password, 'test_password')
+
+    @mock.patch('pypass.main.read_input')
+    def test_cmd_add_account_timeout_account_id(self, mock_read_input: Mock):
+        mock_read_input.side_effect = TimeoutError()
+        db = Mock()
+        db.contains_account.return_value = False
+        main.add_account_cmd(db, {})
+        db.add_account.not_called()
+
+    @mock.patch('pypass.main.read_input')
+    def test_cmd_add_account_timeout_user_id(self, mock_read_input: Mock):
+        mock_read_input.side_effect = ['test_account', TimeoutError()]
+        db = Mock()
+        db.contains_account.return_value = False
+        main.add_account_cmd(db, {})
+        db.add_account.not_called()
+
+    @mock.patch('pypass.main.password_input')
+    @mock.patch('pypass.main.read_input')
+    def test_cmd_add_account_timeout_password(self, mock_read_input: Mock, mock_password_input: Mock):
+        mock_read_input.side_effect = ['test_account', 'test_user']
+        mock_password_input.side_effect = TimeoutError()
+        db = Mock()
+        db.contains_account.return_value = False
+        main.add_account_cmd(db, {})
+        db.add_account.not_called()
 
     @mock.patch('pypass.main.read_input')
     def test_cmd_modify_account_dne(self, mock_read_input):
@@ -162,20 +174,21 @@ class TestPypass(unittest.TestCase):
         self.assertEqual(user, 'test_user_id')
         self.assertEqual(password, None)
 
-    @mock.patch('pypass.main.console_input')
     @mock.patch('pypass.main.read_input')
-    def test_cmd_modify_account_timeout(self, mock_read_input: Mock, mock_console_input: Mock):
-        mock_read_input.return_value = 'test_account'
-        mock_console_input.return_value = TimeoutError()
+    def test_cmd_modify_account_timeout(self, mock_read_input: Mock):
+        mock_read_input.side_effect = TimeoutError()
         db = Mock()
         db.contains_account.return_value = True
         main.modify_account_cmd(db, {})
-        db.modify_account.assert_called_once()
-        account, new_account_id, user, password = db.modify_account.call_args[0]
-        self.assertEqual(account, 'test_account')
-        self.assertEqual(new_account_id, None)
-        self.assertEqual(user, None)
-        self.assertEqual(password, None)
+        db.modify_account.assert_not_called()
+
+    @mock.patch('pypass.main.console_input')
+    def test_cmd_modify_account_timeout_fixme(self, mock_console_input: Mock):
+        mock_console_input.side_effect = TimeoutError()
+        db = Mock()
+        db.contains_account.return_value = True
+        main.modify_account_cmd(db, {})
+        db.modify_account.assert_not_called()
 
     @mock.patch('pypass.main.console_input')
     @mock.patch('pypass.main.read_input')
@@ -232,18 +245,13 @@ class TestPypass(unittest.TestCase):
         db = Mock()
         db.contains_account.return_value = True
         main.modify_account_cmd(db, {})
-        db.modify_account.assert_called_once()
-        account, new_account_id, user, password = db.modify_account.call_args[0]
-        self.assertEqual(account, 'test_account')
-        self.assertEqual(new_account_id, None)
-        self.assertEqual(user, None)
-        self.assertEqual(password, None)
+        db.modify_account.assert_not_called()
 
     @mock.patch('pypass.main.console_input')
     @mock.patch('pypass.main.read_input')
     def test_cmd_modify_account_password_invalid_choice(self, mock_read_input: Mock, mock_console_input: Mock):
         mock_read_input.return_value = 'test_account'
-        mock_console_input.return_value = '4'
+        mock_console_input.side_effect = ['3', '3']
         db = Mock()
         db.contains_account.return_value = True
         main.modify_account_cmd(db, {})
