@@ -278,6 +278,14 @@ class TestPypass(unittest.TestCase):
         main.delete_account_cmd(db, {})
         db.remove_account.assert_called_once()
 
+    @mock.patch('pypass.main.confirm_input')
+    def test_cmd_delete_account_timeout(self, mock_confirm_input):
+        mock_confirm_input.side_effect = TimeoutError()
+        db = Mock()
+        db.contains_account.return_value = True
+        main.delete_account_cmd(db, {})
+        db.remove_account.assert_not_called()
+
     @mock.patch('pypass.main.sys')
     @mock.patch('pypass.main.console_input')
     def test_cmd_quit_cancel_with_unsaved_changes(self, mock_console_input: Mock, mock_sys: Mock):

@@ -242,14 +242,17 @@ def modify_account_cmd(db, _):
 
 
 def delete_account_cmd(db, _):
-    account_id = confirm_input('account')
-    if not db.contains_account(account_id):
-        print('Cannot delete account "%s". Account does not exist' % account_id)
-        return
-    if db.remove_account(account_id):
-        print('Deleted account "%s"' % account_id)
-    else:
-        print('Failed to delete account "%s"' % account_id)
+    try:
+        account_id = confirm_input('account_id')
+        if not db.contains_account(account_id):
+            print('Cannot delete account "%s". Account does not exist' % account_id)
+            return
+        if db.remove_account(account_id):
+            print('Deleted account "%s"' % account_id)
+        else:
+            print('Failed to delete account "%s"' % account_id)
+    except TimeoutError:
+        pass
 
 
 def list_accounts_cmd(db, _):
