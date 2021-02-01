@@ -202,57 +202,48 @@ def password_input():
 
 
 def add_account_cmd(db, _):
-    try:
-        account_id = read_input('account_id')
-        if db.contains_account(account_id):
-            print('Cannot add account "%s". Account exists' % account_id)
-            return
-        user_id = read_input('user_id')
-        password = password_input()
-        if db.add_account(account_id, user_id, password):
-            print('Added account "%s"' % account_id)
-        else:
-            print('Failed to add account')
-    except TimeoutError:
-        pass
+    account_id = read_input('account_id')
+    if db.contains_account(account_id):
+        print('Cannot add account "%s". Account exists' % account_id)
+        return
+    user_id = read_input('user_id')
+    password = password_input()
+    if db.add_account(account_id, user_id, password):
+        print('Added account "%s"' % account_id)
+    else:
+        print('Failed to add account')
 
 
 def modify_account_cmd(db, _):
-    try:
-        account_id = read_input('account_id')
-        if not db.contains_account(account_id):
-            print('Cannot modify account "%s". Account does not exist' % account_id)
-            return
-        new_account_id, user_id, password = None, None, None
-        attribute_id = console_input(MODIFY_PROMPT)
-        if attribute_id == '1':
-            new_account_id = read_input('new_account_id')
-        elif attribute_id == '2':
-            user_id = read_input('user_id')
-        elif attribute_id == '3':
-            password = password_input()
-        else:
-            print('Invalid selection')
-        if db.modify_account(account_id, new_account_id, user_id, password):
-            print('Modified account "%s"' % new_account_id if new_account_id else account_id)
-        else:
-            print('No modifications made to account %s' % account_id)
-    except TimeoutError:
-        pass
+    account_id = read_input('account_id')
+    if not db.contains_account(account_id):
+        print('Cannot modify account "%s". Account does not exist' % account_id)
+        return
+    new_account_id, user_id, password = None, None, None
+    attribute_id = console_input(MODIFY_PROMPT)
+    if attribute_id == '1':
+        new_account_id = read_input('new_account_id')
+    elif attribute_id == '2':
+        user_id = read_input('user_id')
+    elif attribute_id == '3':
+        password = password_input()
+    else:
+        print('Invalid selection')
+    if db.modify_account(account_id, new_account_id, user_id, password):
+        print('Modified account "%s"' % new_account_id if new_account_id else account_id)
+    else:
+        print('No modifications made to account %s' % account_id)
 
 
 def delete_account_cmd(db, _):
-    try:
-        account_id = confirm_input('account_id')
-        if not db.contains_account(account_id):
-            print('Cannot delete account "%s". Account does not exist' % account_id)
-            return
-        if db.remove_account(account_id):
-            print('Deleted account "%s"' % account_id)
-        else:
-            print('Failed to delete account "%s"' % account_id)
-    except TimeoutError:
-        pass
+    account_id = confirm_input('account_id')
+    if not db.contains_account(account_id):
+        print('Cannot delete account "%s". Account does not exist' % account_id)
+        return
+    if db.remove_account(account_id):
+        print('Deleted account "%s"' % account_id)
+    else:
+        print('Failed to delete account "%s"' % account_id)
 
 
 def list_accounts_cmd(db, _):
@@ -261,11 +252,8 @@ def list_accounts_cmd(db, _):
 
 
 def search_accounts_cmd(db, _):
-    try:
-        for account in db.search(read_input('account')):
-            print(_account_str(account))
-    except TimeoutError:
-        pass
+    for account in db.search(read_input('account')):
+        print(_account_str(account))
 
 
 def _account_str(account):
@@ -359,4 +347,7 @@ if __name__ == '__main__':
                     cls()
                 except KeyboardInterrupt:
                     _ = os.system('clear')
+                except TimeoutError:
+                    _ = os.system('clear')
+
 
