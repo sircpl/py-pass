@@ -10,6 +10,7 @@ import io
 import json
 import random
 import string
+from getpass import getpass
 from collections import OrderedDict
 from pypass.load import LineParser
 
@@ -22,8 +23,6 @@ LOGGER = logging.getLogger('pypass')
 def confirm_input(field):
     while True:
         value1 = console_input('Enter ' + field + ': ')
-        if not value1:
-            return None
         value2 = console_input('Confirm ' + field + ': ')
         if value1 == value2:
             return value1
@@ -38,26 +37,26 @@ def random_password(length=DEFAULT_PASSWORD_LENGTH):
     return ''.join(random.choices(string.ascii_letters + string.digits, k=length))
 
 
-def fetch_db(config):
+def fetch_db(config, password):
     buf = io.BytesIO()
     session = boto3.Session(profile_name=config['AWS_PROFILE'])
     s3 = session.client('s3')
     try:
         s3.download_fileobj(config['BUCKET_NAME'], config['DB_KEY'], buf)
-        dec_db = GPG.decrypt(buf.getvalue())
+        dec_db = GPG.decrypt(buf.getvalue(), passphrase=password)
         if dec_db.ok:
             return json.loads(dec_db.data)
         else:
-            raise ValueError('Could no decrypt DB file')
+            raise ValueError('Could not decrypt DB file')
     except botocore.exceptions.ClientError as e:
         error_code = e.response['Error']['Code']
         if error_code == '404':
             return []
 
 
-def cls(delay=10):
+def cls(timeout=10):
     print('\nPress enter to continue\n')
-    ready, _, _ = select.select([sys.stdin], [], [], delay)
+    ready, _, _ = select.select([sys.stdin], [], [], timeout)
     if ready:
         sys.stdin.readline()
     _ = os.system('clear')
@@ -337,7 +336,8 @@ if __name__ == '__main__':
                     print('could not parse: ' + line)
             write_db_cmd(db, config)
         else:
-            db = PasswordDatabase(fetch_db(config), lambda pw_db: write_db_to_s3(pw_db, config))
+            password = getpass()
+            db = PasswordDatabase(fetch_db(config, password), lambda pw_db: write_db_to_s3(pw_db, config))
             os.system('clear')
 
             while True:

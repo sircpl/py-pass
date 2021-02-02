@@ -343,6 +343,19 @@ class TestPypass(unittest.TestCase):
             mock_read_input.side_effect = TimeoutError()
             main.search_accounts_cmd(db, {})
 
+    @mock.patch('pypass.main.console_input')
+    def test_confirm_input_same(self, mock_console_input: Mock):
+        mock_console_input.side_effect = ['same', 'same']
+        result = main.confirm_input('field')
+        self.assertEqual(result, 'same')
+
+    @mock.patch('pypass.main.console_input')
+    def test_confirm_input_different(self, mock_console_input: Mock):
+        with self.assertRaises(TimeoutError):
+            mock_console_input.side_effect = ['same', 'different', TimeoutError() ]
+            main.confirm_input('field')
+            self.fail()
+
 
 if __name__ == '__main__':
     unittest.main()
