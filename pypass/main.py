@@ -229,7 +229,7 @@ def modify_account_cmd(db, _):
     else:
         print('Invalid selection')
     if db.modify_account(account_id, new_account_id, user_id, password):
-        print('Modified account "%s"' % new_account_id if new_account_id else account_id)
+        print('Modified account "%s"' % (new_account_id if new_account_id else account_id))
     else:
         print('No modifications made to account %s' % account_id)
 
